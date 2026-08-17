@@ -15,6 +15,10 @@
   <code>Rev 1 candidate</code> · <code>React 19</code> · <code>TypeScript</code> · <code>Vite</code> · <code>shadcn/ui</code> · <code>Tailwind CSS</code>
 </p>
 
+<p align="center">
+  <a href="https://snia-tco-rev3.pages.dev/"><strong>Launch the live model →</strong></a>
+</p>
+
 ## Overview
 
 Storage TCO Lab turns drive, server, cluster, protection, software, and operating assumptions into a single auditable total cost of ownership model. It is based on the structure of the SNIA Storage TCO 2.0 model and extends it with modern NVMe, 800G fabric, colocation, licensing, data-reduction, and durability controls.
@@ -133,6 +137,19 @@ bun run build
 ```
 
 The production bundle is written to `apps/web/dist`.
+
+### Deploy to Cloudflare Pages
+
+After authenticating Wrangler with `bunx wrangler@latest login`, publish the current production bundle with:
+
+```bash
+bun run build
+bunx wrangler@latest pages deploy apps/web/dist \
+  --project-name snia-tco-rev3 \
+  --branch main
+```
+
+The production site is available at [snia-tco-rev3.pages.dev](https://snia-tco-rev3.pages.dev/).
 
 ## Useful commands
 

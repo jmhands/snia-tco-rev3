@@ -306,7 +306,7 @@ The annual ledger records hardware and upfront software in the acquisition perio
 
 ## Durability model
 
-The durability estimate is adapted from [jmhands/durability-calc](https://github.com/jmhands/durability-calc) and evaluates one protection set.
+The durability estimate evaluates one protection set using a binomial rebuild-window model.
 
 For annual shard failure rate `AFR` and rebuild window in days:
 

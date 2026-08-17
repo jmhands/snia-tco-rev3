@@ -117,7 +117,7 @@ function prettyProbability(probability: number) {
 }
 
 /**
- * Binomial rebuild-window durability model adapted from jmhands/durability-calc.
+ * Binomial rebuild-window durability model.
  * A protection set is lost when failures within one rebuild window exceed available redundancy.
  */
 export function calculateDurability(

@@ -102,7 +102,7 @@ The complete formulas, cost-category mapping, network breakout rules, and durabi
 
 ## Durability estimate
 
-Mirror, RAID, and erasure-code configurations show an annual durability estimate for one protection set. The implementation uses a binomial rebuild-window model adapted from [jmhands/durability-calc](https://github.com/jmhands/durability-calc): data loss occurs when failures during a rebuild window exceed the available redundancy.
+Mirror, RAID, and erasure-code configurations show an annual durability estimate for one protection set. The implementation uses a binomial rebuild-window model: data loss occurs when failures during a rebuild window exceed the available redundancy.
 
 This is a comparative planning signal, not a durability guarantee. The current model assumes independent failures and does not yet account for correlated failures, failure domains, latent sector errors, rebuild contention, or vendor-specific behavior.
 
@@ -158,6 +158,7 @@ The production bundle is written to `apps/web/dist`.
 │   └── MODEL.md             # Detailed methodology and assumptions
 ├── packages/
 │   └── ui/                  # Shared shadcn components and design tokens
+├── LICENSE                  # MIT license for the source code
 ├── package.json             # Workspace scripts and tool versions
 └── turbo.json               # Monorepo task orchestration
 ```
@@ -206,10 +207,10 @@ Storage TCO Lab is an estimation and scenario-comparison tool. It does not repla
 
 ## Attribution
 
-This project builds on concepts from the SNIA Storage TCO 2.0 model and uses SNIA branding assets supplied for the project. SNIA brand assets should be used in accordance with the applicable SNIA brand guidance. Durability math is adapted from [jmhands/durability-calc](https://github.com/jmhands/durability-calc).
+This project builds on concepts from the SNIA Storage TCO 2.0 model and uses SNIA branding assets supplied for the project. SNIA brand assets should be used in accordance with the applicable SNIA brand guidance.
 
 The interface is built from shadcn/ui components while retaining the project’s SNIA color system and light/dark theme treatment.
 
 ## License
 
-No open-source license has been selected for this repository yet. Add the intended license before inviting external reuse or contributions.
+The source code is available under the [MIT License](./LICENSE). SNIA names, marks, and logo assets are excluded from that grant and remain subject to the applicable SNIA brand guidance.

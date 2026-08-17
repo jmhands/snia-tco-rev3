@@ -12,7 +12,7 @@ import {
   type TcoModel,
 } from "@/lib/tco-model"
 
-const STORAGE_KEY = "snia-tco-model-v14"
+const STORAGE_KEY = "snia-tco-model-v20"
 
 function cloneDefaultModel() {
   return structuredClone(DEFAULT_MODEL)
@@ -95,9 +95,9 @@ export function App() {
       ],
       ["Protection overhead factor", results.protectionFactor],
       ["Raw capacity (TB)", results.rawCapacityTB],
-      ["Capacity after utilization (TB)", results.utilizedCapacityTB],
       ["Capacity after protection (TB)", results.protectedCapacityTB],
-      ["Effective capacity (TB)", results.effectiveCapacityTB],
+      ["Capacity after data reduction (TBe)", results.dataReducedCapacityTB],
+      ["Utilized effective capacity (TBe)", results.utilizedCapacityTB],
       ["Rack count", results.rackCount],
       ["Average IT power (W)", results.averageItPowerWatts],
       ["Peak provisioned IT power (kW)", results.provisionedPowerKw],
@@ -108,7 +108,8 @@ export function App() {
       ["Electricity ($ / kWh)", model.opex.electricityPerKwh],
       ["Annual energy (kWh)", results.annualEnergyKwh],
       ["Electricity term total ($)", results.electricityTotal],
-      ["Internet bandwidth (Gbps)", model.opex.internetBandwidthGbps],
+      ["Internet bandwidth per rack (Gbps)", model.opex.internetBandwidthGbps],
+      ["Internet bandwidth rack count", results.rackCount],
       ["Internet bandwidth ($ / Gbps / month)", model.opex.internetPerGbpsMonth],
       ["Internet bandwidth term total ($)", results.networkOpexTotal],
       ["Hardware CapEx ($)", results.hardwareCapex],
@@ -123,6 +124,9 @@ export function App() {
       ["TCO / raw TB ($)", results.tcoPerRawTB],
       ["TCO / effective TB ($)", results.tcoPerEffectiveTB],
       ["TCO / effective TB / month ($)", results.tcoPerEffectiveTBMonth],
+      ["Depreciated hardware CapEx / effective TB / month ($)", results.hardwareCapexPerEffectiveTBMonth],
+      ["Operating cost / effective TB / month ($)", results.operationsPerEffectiveTBMonth],
+      ["Software / effective TB / month ($)", results.softwarePerEffectiveTBMonth],
     ]
     const csv = ["Metric,Value", ...rows.map((row) => row.map(escapeCsv).join(","))].join("\n")
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })

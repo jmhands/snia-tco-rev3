@@ -30,6 +30,7 @@ export type NicSpeedGbps = 100 | 200 | 400 | 800
 
 export const REFERENCE_SWITCH_PORTS = 64
 export const REFERENCE_SWITCH_SPEED_GBPS = 800
+const DEFAULT_DRIVE_ID = "nvme-15-36-default"
 
 export type ServerConfig = {
   name: string
@@ -136,8 +137,9 @@ export type TcoResults = {
   switchOpticCount: number
   rawCapacityPerServerTB: number
   rawCapacityTB: number
-  utilizedCapacityTB: number
   protectedCapacityTB: number
+  dataReducedCapacityTB: number
+  utilizedCapacityTB: number
   effectiveCapacityTB: number
   protectionFactor: number
   protectionDataShards: number
@@ -174,6 +176,9 @@ export type TcoResults = {
   tcoPerRawTB: number
   tcoPerEffectiveTB: number
   tcoPerEffectiveTBMonth: number
+  hardwareCapexPerEffectiveTBMonth: number
+  operationsPerEffectiveTBMonth: number
+  softwarePerEffectiveTBMonth: number
   capexPercent: number
   annualizedTco: number
   categories: CostCategory[]
@@ -222,10 +227,22 @@ export const SECTION_META: Record<
 }
 
 export const DEFAULT_MODEL: TcoModel = {
-  drives: [],
+  drives: [
+    {
+      id: DEFAULT_DRIVE_ID,
+      name: "15.36 TB NVMe",
+      medium: "NVMe SSD",
+      interface: "PCIe Gen5",
+      capacityTB: 15.36,
+      activeWatts: 15,
+      idleWatts: 3,
+      afrPercent: 0.44,
+      costPerTB: 350,
+    },
+  ],
   server: {
     name: "Storage server",
-    driveAllocations: [],
+    driveAllocations: [{ driveId: DEFAULT_DRIVE_ID, count: 24 }],
     cpuModel: "General-purpose x86",
     sockets: 1,
     coresPerSocket: 64,
@@ -233,9 +250,9 @@ export const DEFAULT_MODEL: TcoModel = {
     rackUnits: 2,
     basePowerWatts: 650,
     nicCount: 2,
-    nicSpeedGbps: 100,
-    portsPerNic: 1,
-    unitCost: 11500,
+    nicSpeedGbps: 200,
+    portsPerNic: 2,
+    unitCost: 35000,
   },
   cluster: {
     serverCount: 12,
@@ -245,17 +262,17 @@ export const DEFAULT_MODEL: TcoModel = {
     switchCostPerPort: 781.25,
     hostOpticCost: 400,
     switchOpticCost: 800,
-    switchPowerWatts: 350,
-    switchRackUnits: 1,
+    switchPowerWatts: 2500,
+    switchRackUnits: 2,
   },
   software: {
     upfrontPerRawTB: 0,
     upfrontPerServer: 0,
     monthlyPerCore: 0,
-    monthlyPerRawTB: 0,
+    monthlyPerRawTB: 3,
   },
   workload: {
-    termYears: 3,
+    termYears: 5,
     protectionScheme: "raid6",
     dataShards: 8,
     parityShards: 2,
@@ -271,7 +288,7 @@ export const DEFAULT_MODEL: TcoModel = {
     internetBandwidthGbps: 100,
     internetPerGbpsMonth: 100,
     annualAdminCost: 12000,
-    annualHardwareSupportPercent: 8,
+    annualHardwareSupportPercent: 3,
     driveReplacementLabor: 100,
   },
 }
@@ -386,9 +403,10 @@ export function calculateTco(model: TcoModel): TcoResults {
   )
   const protection = protectionLayout.protectionFactor
   const dataReduction = positive(model.workload.dataReductionRatio, 0.01)
-  const utilizedCapacityTB = rawCapacityTB * utilization
-  const protectedCapacityTB = utilizedCapacityTB / protection
-  const effectiveCapacityTB = protectedCapacityTB * dataReduction
+  const protectedCapacityTB = rawCapacityTB / protection
+  const dataReducedCapacityTB = protectedCapacityTB * dataReduction
+  const utilizedCapacityTB = dataReducedCapacityTB * utilization
+  const effectiveCapacityTB = utilizedCapacityTB
 
   const totalRackUnits =
     serverCount * positive(model.server.rackUnits) +
@@ -459,6 +477,7 @@ export function calculateTco(model: TcoModel): TcoResults {
   const coloSpaceTotal = monthlyColoCost * termMonths
   const networkOpexTotal =
     positive(model.opex.internetBandwidthGbps) *
+    rackCount *
     positive(model.opex.internetPerGbpsMonth) *
     termMonths
   const replacementTotal = driveBreakdown.reduce(
@@ -483,6 +502,7 @@ export function calculateTco(model: TcoModel): TcoResults {
     supportTotal +
     adminTotal
   const tco = hardwareCapex + softwareTotal + operationsTotal
+  const effectiveCapacityTermMonths = effectiveCapacityTB * termMonths
 
   const annualSoftware = recurringSoftware / termYears
   const annualOperations = operationsTotal / termYears
@@ -532,8 +552,9 @@ export function calculateTco(model: TcoModel): TcoResults {
     switchOpticCount,
     rawCapacityPerServerTB,
     rawCapacityTB,
-    utilizedCapacityTB,
     protectedCapacityTB,
+    dataReducedCapacityTB,
+    utilizedCapacityTB,
     effectiveCapacityTB,
     protectionFactor: protectionLayout.protectionFactor,
     protectionDataShards: protectionLayout.dataShards,
@@ -571,6 +592,15 @@ export function calculateTco(model: TcoModel): TcoResults {
     tcoPerEffectiveTB: effectiveCapacityTB ? tco / effectiveCapacityTB : 0,
     tcoPerEffectiveTBMonth:
       effectiveCapacityTB && termMonths ? tco / effectiveCapacityTB / termMonths : 0,
+    hardwareCapexPerEffectiveTBMonth: effectiveCapacityTermMonths
+      ? hardwareCapex / effectiveCapacityTermMonths
+      : 0,
+    operationsPerEffectiveTBMonth: effectiveCapacityTermMonths
+      ? operationsTotal / effectiveCapacityTermMonths
+      : 0,
+    softwarePerEffectiveTBMonth: effectiveCapacityTermMonths
+      ? softwareTotal / effectiveCapacityTermMonths
+      : 0,
     capexPercent: tco ? ((hardwareCapex + upfrontSoftware) / tco) * 100 : 0,
     annualizedTco: tco / termYears,
     categories,

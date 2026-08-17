@@ -1,7 +1,6 @@
 import type { ComponentType } from "react"
 import {
   BoxesIcon,
-  CalculatorIcon,
   ChartNoAxesCombinedIcon,
   CircuitBoardIcon,
   DatabaseIcon,
@@ -126,15 +125,31 @@ export function AppSidebar({
               tooltip="SNIA TCO Lab"
               isActive={activeSection === "summary"}
               onClick={() => changeSection("summary")}
+              className="h-14 group-data-[collapsible=icon]:h-8"
             >
-              <span className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
-                <CalculatorIcon />
-              </span>
-              <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="font-heading text-sm font-semibold">SNIA TCO Lab</span>
-                <span className="font-mono text-[0.625rem] tracking-wider text-sidebar-foreground/60 uppercase">
-                  Storage economics
-                </span>
+              <span className="relative flex h-11 w-full min-w-0 items-center overflow-hidden rounded-md bg-sidebar-primary-foreground px-3 shadow-sm ring-1 ring-sidebar-border group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-1!">
+                <img
+                  src="/snia-logo.svg"
+                  alt="SNIA"
+                  className="h-auto w-[8.75rem] max-w-full dark:hidden group-data-[collapsible=icon]:hidden"
+                />
+                <img
+                  src="/snia-logo-dark.svg"
+                  alt="SNIA"
+                  className="absolute inset-0 hidden size-full object-cover dark:block group-data-[collapsible=icon]:hidden"
+                />
+                <img
+                  src="/snia-mark.svg"
+                  alt=""
+                  aria-hidden="true"
+                  className="hidden size-6 group-data-[collapsible=icon]:block dark:group-data-[collapsible=icon]:hidden"
+                />
+                <img
+                  src="/snia-mark-dark.svg"
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 hidden size-full object-cover dark:group-data-[collapsible=icon]:block"
+                />
               </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -164,7 +179,7 @@ export function AppSidebar({
             <SidebarMenuButton
               size="lg"
               variant="outline"
-              tooltip={`${formatCapacity(tcoResults.effectiveCapacityTB)} effective capacity`}
+              tooltip={`${formatCapacity(tcoResults.effectiveCapacityTB)} utilized effective capacity`}
               onClick={() => changeSection("summary")}
             >
               <BoxesIcon />

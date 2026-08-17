@@ -18,11 +18,9 @@ import {
   ZapIcon,
 } from "lucide-react"
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  XAxis,
-  YAxis,
+  Label,
+  Pie,
+  PieChart,
 } from "recharts"
 
 import { Badge } from "@workspace/ui/components/badge"
@@ -344,7 +342,16 @@ function DrivePage({ model, results, onModelChange }: Omit<ModelPagesProps, "act
       costPerTB: 350,
     }
     setSelectedDriveId(id)
-    onModelChange({ ...model, drives: [...model.drives, newDrive] })
+    onModelChange({
+      ...model,
+      drives: [...model.drives, newDrive],
+      server: model.server.driveAllocations.length
+        ? model.server
+        : {
+            ...model.server,
+            driveAllocations: [{ driveId: id, count: 24 }],
+          },
+    })
   }
 
   const selectedDrivesPerServer = selectedDrive
@@ -1273,7 +1280,7 @@ function ClusterPage({ model, results, onModelChange }: Omit<ModelPagesProps, "a
                 <FieldGroup>
                   <SliderField
                     label="Host optic cost"
-                    description={`One optic for each of the ${results.totalHostPorts} physical ${model.server.nicSpeedGbps}G host ports.`}
+                    description={`One optic for each of the ${results.totalHostPorts} host ports.`}
                     value={model.cluster.hostOpticCost}
                     min={0}
                     max={5000}
@@ -1440,11 +1447,11 @@ function SoftwarePage({ model, results, onModelChange }: Omit<ModelPagesProps, "
                 />
                 <SliderField
                   label="Monthly per raw TB"
-                  description={`Applied to ${formatCapacity(results.rawCapacityTB)} of installed raw capacity each month.`}
-                  value={model.software.monthlyPerRawTB}
-                  min={0}
-                  max={100}
-                  step={0.5}
+            description={`Applied to ${formatCapacity(results.rawCapacityTB)} of installed raw capacity each month.`}
+            value={model.software.monthlyPerRawTB}
+            min={0}
+            max={30}
+            step={0.5}
                   formatValue={(value) => `${formatCurrency(value, value % 1 ? 2 : 0)} / TB`}
                   onChange={(monthlyPerRawTB) =>
                     updateSoftware({ monthlyPerRawTB })
@@ -1501,6 +1508,7 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
     model.workload.dataShards,
     model.workload.parityShards
   )
+  const isMirror = model.workload.protectionScheme === "mirror"
   const hasDriveMix = results.totalDrives > 0
   const durability = calculateDurability(
     protectionLayout,
@@ -1521,11 +1529,13 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
       : durability.annualDurability.toFixed(4)
 
   const tbePerRawTb =
-    (model.workload.capacityUtilizationPercent / 100 / results.protectionFactor) *
-    model.workload.dataReductionRatio
+    (1 / results.protectionFactor) *
+    model.workload.dataReductionRatio *
+    (model.workload.capacityUtilizationPercent / 100)
 
   const selectProtectionScheme = (scheme: ProtectionScheme) => {
     const presets: Record<ProtectionScheme, { dataShards: number; parityShards: number }> = {
+      mirror: { dataShards: 1, parityShards: 1 },
       raid5: { dataShards: 4, parityShards: 1 },
       raid6: { dataShards: 8, parityShards: 2 },
       erasure: { dataShards: 10, parityShards: 4 },
@@ -1551,7 +1561,7 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
                 <ShieldCheckIcon /> Data protection
               </CardTitle>
               <CardDescription>
-                Choose a common protection profile, then tune the shard layout and rebuild window.
+                Choose a common protection profile, then tune the available layout and rebuild window.
               </CardDescription>
               <CardAction>
                 <Badge>{protectionLayout.protectionFactor.toFixed(2)}× overhead</Badge>
@@ -1568,9 +1578,16 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
                   }}
                   variant="outline"
                   size="lg"
-                  className="grid w-full grid-cols-1 sm:grid-cols-3"
+                  className="grid w-full grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"
                   aria-label="Protection profile"
                 >
+                  <ToggleGroupItem
+                    value="mirror"
+                    className="h-auto min-w-0 flex-col items-start gap-1 px-3 py-3 text-left"
+                  >
+                    <span className="font-semibold">Mirror</span>
+                    <span className="text-[0.625rem] font-normal text-muted-foreground">Two copies · 2:1 overhead</span>
+                  </ToggleGroupItem>
                   <ToggleGroupItem
                     value="raid5"
                     className="h-auto min-w-0 flex-col items-start gap-1 px-3 py-3 text-left"
@@ -1594,7 +1611,7 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
                   </ToggleGroupItem>
                 </ToggleGroup>
                 <FieldDescription>
-                  RAID parity is fixed by the profile. Erasure coding unlocks the parity slider.
+                  Mirror and RAID redundancy are fixed by the profile. Erasure coding unlocks the parity slider.
                 </FieldDescription>
               </Field>
 
@@ -1603,7 +1620,9 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
                   <div>
                     <div className="text-xs font-medium">Protection set</div>
                     <div className="font-mono text-[0.625rem] text-muted-foreground">
-                      {protectionLayout.totalShards} total shards · survives {protectionLayout.parityShards} simultaneous {protectionLayout.parityShards === 1 ? "failure" : "failures"}
+                      {isMirror
+                        ? "2 copies · survives 1 copy failure"
+                        : `${protectionLayout.totalShards} total shards · survives ${protectionLayout.parityShards} simultaneous ${protectionLayout.parityShards === 1 ? "failure" : "failures"}`}
                     </div>
                   </div>
                   <Badge variant="secondary" className="font-mono">
@@ -1612,7 +1631,11 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
                 </div>
                 <div
                   className="flex flex-wrap gap-1.5"
-                  aria-label={`${protectionLayout.dataShards} data shards and ${protectionLayout.parityShards} parity ${protectionLayout.parityShards === 1 ? "shard" : "shards"}`}
+                  aria-label={
+                    isMirror
+                      ? "Two mirrored copies"
+                      : `${protectionLayout.dataShards} data shards and ${protectionLayout.parityShards} parity ${protectionLayout.parityShards === 1 ? "shard" : "shards"}`
+                  }
                 >
                   {Array.from({ length: protectionLayout.totalShards }, (_, index) => {
                     const isDataShard = index < protectionLayout.dataShards
@@ -1627,46 +1650,53 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
                             : "flex size-8 items-center justify-center rounded-md border border-amber-500/40 bg-amber-500/10 font-mono text-[0.625rem] font-semibold text-amber-600 dark:text-amber-400"
                         }
                       >
-                        {isDataShard ? "D" : "P"}
+                        {isDataShard ? "D" : isMirror ? "M" : "P"}
                       </div>
                     )
                   })}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-4 text-[0.625rem] text-muted-foreground">
                   <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm bg-primary/60" /> Data</span>
-                  <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm bg-amber-500/70" /> Parity</span>
+                  <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm bg-amber-500/70" /> {isMirror ? "Mirror copy" : "Parity"}</span>
                 </div>
               </div>
 
               <FieldGroup className="grid grid-cols-1 md:grid-cols-2">
                 <SliderField
                   label="Data shards"
-                  description="Minimum number of shards required to reconstruct the data."
+                  description={
+                    isMirror
+                      ? "Mirror fixes the layout at one data copy plus one mirror copy."
+                      : "Minimum number of shards required to reconstruct the data."
+                  }
                   value={protectionLayout.dataShards}
-                  min={2}
+                  min={1}
                   max={20}
                   step={1}
                   suffix=" data"
+                  disabled={isMirror}
                   onChange={(dataShards) => updateWorkload({ dataShards })}
                 />
                 <SliderField
-                  label="Parity shards"
+                  label={isMirror ? "Mirror copies" : "Parity shards"}
                   description={
-                    model.workload.protectionScheme === "erasure"
-                      ? "Failures the protection set can tolerate before data loss."
-                      : `${model.workload.protectionScheme === "raid5" ? "RAID 5" : "RAID 6"} fixes this value at ${protectionLayout.parityShards}.`
+                    isMirror
+                      ? "One additional copy provides fixed 2:1 protection overhead."
+                      : model.workload.protectionScheme === "erasure"
+                        ? "Failures the protection set can tolerate before data loss."
+                        : `${model.workload.protectionScheme === "raid5" ? "RAID 5" : "RAID 6"} fixes this value at ${protectionLayout.parityShards}.`
                   }
                   value={protectionLayout.parityShards}
                   min={1}
                   max={10}
                   step={1}
-                  suffix=" parity"
+                  suffix={isMirror ? " mirror" : " parity"}
                   disabled={model.workload.protectionScheme !== "erasure"}
                   onChange={(parityShards) => updateWorkload({ parityShards })}
                 />
                 <SliderField
                   label="Rebuild window"
-                  description="Time a degraded protection set remains exposed while a shard is replaced."
+                  description={`Time a degraded protection set remains exposed while a ${isMirror ? "copy" : "shard"} is replaced.`}
                   value={model.workload.rebuildTimeHours}
                   min={1}
                   max={168}
@@ -1728,7 +1758,7 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
                   <CardHeader>
                     <CardDescription>Loss threshold</CardDescription>
                     <CardTitle className="font-mono text-xl">
-                      {durability.failureThreshold} failed shards
+                      {durability.failureThreshold} failed {isMirror ? "copies" : "shards"}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="font-mono text-[0.625rem] text-muted-foreground">
@@ -1752,7 +1782,7 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
             <CardFooter className="border-t">
               <span className="text-[0.625rem] leading-relaxed text-muted-foreground">
                 {hasDriveMix
-                  ? `Binomial rebuild-window model using the server mix's count-weighted ${results.weightedAfrPercent.toFixed(2)}% AFR, independent shard failures, and a ${model.workload.rebuildTimeHours}-hour rebuild. Result is per protection set.`
+                  ? `Binomial rebuild-window model using the server mix's count-weighted ${results.weightedAfrPercent.toFixed(2)}% AFR, independent ${isMirror ? "copy" : "shard"} failures, and a ${model.workload.rebuildTimeHours}-hour rebuild. Result is per protection set.`
                   : "Add at least one configured drive profile to Server Config to calculate durability."}
               </span>
             </CardFooter>
@@ -1767,7 +1797,7 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
               <FieldGroup>
                 <SliderField
                   label="Capacity utilization"
-                  description="Share of raw TB used for planned data placement."
+                  description="Share of post-protection, data-reduced capacity occupied by the workload."
                   value={model.workload.capacityUtilizationPercent}
                   min={10}
                   max={100}
@@ -1803,7 +1833,7 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
             <CardHeader>
               <CardTitle>Capacity bridge</CardTitle>
               <CardDescription>
-                The complete calculation from installed raw TB to effective TBe.
+                The complete calculation from installed raw TB to utilized effective TBe.
               </CardDescription>
               <CardAction>
                 <Badge variant="secondary">TB → TBe</Badge>
@@ -1818,19 +1848,19 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
                     hint: "Installed media capacity",
                   },
                   {
-                    label: "Utilized TB",
-                    value: formatCapacity(results.utilizedCapacityTB),
-                    hint: `× ${model.workload.capacityUtilizationPercent}% utilization`,
-                  },
-                  {
                     label: "Protected TB",
                     value: formatCapacity(results.protectedCapacityTB),
                     hint: `÷ ${results.protectionFactor.toFixed(2)} protection factor`,
                   },
                   {
-                    label: "Effective TBe",
-                    value: formatEffectiveCapacity(results.effectiveCapacityTB),
+                    label: "Data-reduced TBe",
+                    value: formatEffectiveCapacity(results.dataReducedCapacityTB),
                     hint: `× ${model.workload.dataReductionRatio} data reduction`,
+                  },
+                  {
+                    label: "Utilized TBe",
+                    value: formatEffectiveCapacity(results.utilizedCapacityTB),
+                    hint: `× ${model.workload.capacityUtilizationPercent}% utilization`,
                   },
                 ].map((stage, index) => (
                   <div className="flex min-w-0 items-center gap-3" key={stage.label}>
@@ -1857,7 +1887,7 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
                 <div className="flex flex-col gap-1">
                   <span className="text-xs font-medium">TB → TBe summary</span>
                   <span className="font-mono text-[0.625rem] text-muted-foreground">
-                    Raw TB × utilization ÷ protection factor × data reduction
+                    Raw TB ÷ protection factor × data reduction × utilization
                   </span>
                 </div>
                 <Badge className="font-mono">
@@ -1867,7 +1897,7 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
               <Separator />
               <div className="flex flex-wrap items-center justify-between gap-3 font-mono text-xs tabular-nums">
                 <span>
-                  {formatCapacity(results.rawCapacityTB)} × {model.workload.capacityUtilizationPercent}% ÷ {results.protectionFactor.toFixed(2)} × {model.workload.dataReductionRatio}
+                  {formatCapacity(results.rawCapacityTB)} ÷ {results.protectionFactor.toFixed(2)} × {model.workload.dataReductionRatio} × {model.workload.capacityUtilizationPercent}%
                 </span>
                 <span className="font-semibold">
                   = {formatEffectiveCapacity(results.effectiveCapacityTB)}
@@ -1882,7 +1912,7 @@ function WorkloadPage({ model, results, onModelChange }: Omit<ModelPagesProps, "
             { label: "Protection", value: protectionLayout.label },
             { label: "Annual durability", value: durabilityLabel },
             { label: "Raw capacity", value: formatCapacity(results.rawCapacityTB) },
-            { label: "Effective capacity", value: formatEffectiveCapacity(results.effectiveCapacityTB) },
+            { label: "Utilized effective capacity", value: formatEffectiveCapacity(results.effectiveCapacityTB) },
             { label: "Average IT load", value: formatPower(results.averageItPowerWatts) },
             { label: "Annual energy", value: `${Math.round(results.annualEnergyKwh).toLocaleString()} kWh` },
             { label: "TCO / effective TB", value: formatCurrency(results.tcoPerEffectiveTB, 2) },
@@ -1900,7 +1930,9 @@ function OpexPage({ model, results, onModelChange }: Omit<ModelPagesProps, "acti
   const facilityPowerKw =
     (results.averageItPowerWatts / 1000) * model.opex.pue
   const monthlyInternetCost =
-    model.opex.internetBandwidthGbps * model.opex.internetPerGbpsMonth
+    model.opex.internetBandwidthGbps *
+    results.rackCount *
+    model.opex.internetPerGbpsMonth
   const termMonths = model.workload.termYears * 12
 
   return (
@@ -1994,17 +2026,17 @@ function OpexPage({ model, results, onModelChange }: Omit<ModelPagesProps, "acti
             <CardHeader>
               <CardTitle>Internet bandwidth</CardTitle>
               <CardDescription>
-                Cluster-wide committed Internet service, separate from storage fabric and colocation power.
+                Committed Internet service per rack, separate from storage fabric and colocation power.
               </CardDescription>
               <CardAction>
-                <Badge variant="secondary">Committed monthly</Badge>
+                <Badge variant="secondary">Per rack · monthly</Badge>
               </CardAction>
             </CardHeader>
             <CardContent>
               <FieldGroup className="grid grid-cols-1 lg:grid-cols-2">
                 <ChoiceSliderField
-                  label="Provisioned Internet bandwidth"
-                  description="Cluster-wide committed Internet bandwidth, separate from the storage fabric."
+                  label="Provisioned Internet bandwidth per rack"
+                  description={`Applied independently to each of the deployment's ${results.rackCount} ${results.rackCount === 1 ? "rack" : "racks"}.`}
                   value={model.opex.internetBandwidthGbps}
                   choices={[0, 1, 10, 25, 40, 50, 100, 200, 400, 800, 1000]}
                   formatValue={(value) => `${value.toLocaleString()} Gb/s`}
@@ -2028,7 +2060,9 @@ function OpexPage({ model, results, onModelChange }: Omit<ModelPagesProps, "acti
             </CardContent>
             <CardFooter className="border-t">
               <div className="flex w-full flex-wrap items-center justify-between gap-3">
-                <span className="text-muted-foreground">Internet run rate</span>
+                <span className="text-muted-foreground">
+                  {model.opex.internetBandwidthGbps.toLocaleString()} Gb/s / rack × {results.rackCount} {results.rackCount === 1 ? "rack" : "racks"}
+                </span>
                 <span className="font-mono font-semibold tabular-nums">
                   {formatCompactCurrency(monthlyInternetCost)} / month
                 </span>
@@ -2152,11 +2186,43 @@ function OpexPage({ model, results, onModelChange }: Omit<ModelPagesProps, "acti
 
 const chartConfig = {
   hardware: { label: "Hardware", color: "var(--chart-1)" },
+  energy: { label: "Energy", color: "var(--chart-2)" },
+  facilities: { label: "Colocation", color: "var(--chart-4)" },
+  network: { label: "Internet bandwidth", color: "var(--chart-5)" },
   software: { label: "Software", color: "var(--chart-3)" },
-  operations: { label: "Operations", color: "var(--chart-5)" },
+  operations: { label: "Support & operations", color: "var(--muted-foreground)" },
 } satisfies ChartConfig
 
 function SummaryPage({ results, model, onSectionChange }: Pick<ModelPagesProps, "results" | "model" | "onSectionChange">) {
+  const termMonths = model.workload.termYears * 12
+  const tcoMixData = results.categories.map((category) => ({
+    ...category,
+    fill: `var(--color-${category.key})`,
+  }))
+  const costPerEffectiveTbBreakdown = [
+    {
+      key: "capex",
+      label: "Depreciated CapEx",
+      description: `Drive, server, and fabric acquisition spread evenly over ${termMonths} months with no residual value.`,
+      total: results.hardwareCapex,
+      perEffectiveTbMonth: results.hardwareCapexPerEffectiveTBMonth,
+    },
+    {
+      key: "opex",
+      label: "OpEx",
+      description: "Energy, colocation, internet, replacements, support, and administration.",
+      total: results.operationsTotal,
+      perEffectiveTbMonth: results.operationsPerEffectiveTBMonth,
+    },
+    {
+      key: "software",
+      label: "Software",
+      description: "Upfront and recurring licenses priced from raw capacity, cores, and servers.",
+      total: results.softwareTotal,
+      perEffectiveTbMonth: results.softwarePerEffectiveTBMonth,
+    },
+  ]
+
   return (
     <div className="flex flex-col gap-6">
       <div className="relative overflow-hidden rounded-xl border bg-card p-6 shadow-sm sm:p-8">
@@ -2191,9 +2257,9 @@ function SummaryPage({ results, model, onSectionChange }: Pick<ModelPagesProps, 
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryMetric
-          label="Effective capacity"
+          label="Utilized effective capacity"
           value={formatEffectiveCapacity(results.effectiveCapacityTB)}
-          hint={`${formatCapacity(results.rawCapacityTB)} raw after utilization, protection, and data reduction.`}
+          hint={`${formatCapacity(results.rawCapacityTB)} raw after protection, data reduction, and utilization.`}
           icon={DatabaseIcon}
         />
         <SummaryMetric
@@ -2216,31 +2282,159 @@ function SummaryPage({ results, model, onSectionChange }: Pick<ModelPagesProps, 
         />
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Cost per effective TB breakdown</CardTitle>
+          <CardDescription>
+            CapEx is straight-line depreciated across the deployment term, with OpEx and software shown separately.
+          </CardDescription>
+          <CardAction>
+            <Badge variant="secondary">
+              {formatCurrency(results.tcoPerEffectiveTBMonth, 2)} / TBe / mo
+            </Badge>
+          </CardAction>
+        </CardHeader>
+        <CardContent className="grid gap-3 lg:grid-cols-3">
+          {costPerEffectiveTbBreakdown.map((category) => {
+            const share = results.tco ? (category.total / results.tco) * 100 : 0
+            const termCostPerEffectiveTb = results.effectiveCapacityTB
+              ? category.total / results.effectiveCapacityTB
+              : 0
+
+            return (
+              <Card size="sm" key={category.key}>
+                <CardHeader>
+                  <CardTitle>{category.label}</CardTitle>
+                  <CardDescription>{category.description}</CardDescription>
+                  <CardAction>
+                    <Badge variant="outline">{share.toFixed(0)}%</Badge>
+                  </CardAction>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3">
+                  <div className="flex items-end justify-between gap-3">
+                    <span className="font-mono text-2xl font-semibold tracking-tight">
+                      {formatCurrency(category.perEffectiveTbMonth, 2)}
+                    </span>
+                    <span className="pb-1 text-[0.625rem] text-muted-foreground">
+                      / TBe / month
+                    </span>
+                  </div>
+                  <Progress
+                    value={share}
+                    aria-label={`${category.label} share of total cost`}
+                  />
+                </CardContent>
+                <CardFooter className="flex-wrap justify-between gap-2 border-t text-[0.625rem] text-muted-foreground">
+                  <span>{formatCurrency(termCostPerEffectiveTb, 2)} / TBe over term</span>
+                  <span className="font-mono">{formatCompactCurrency(category.total)} total</span>
+                </CardFooter>
+              </Card>
+            )
+          })}
+        </CardContent>
+        <CardFooter className="flex-wrap justify-between gap-2 border-t">
+          <span className="text-muted-foreground">
+            Depreciated CapEx + OpEx + software
+          </span>
+          <span className="font-mono font-semibold">
+            {formatCurrency(
+              results.hardwareCapexPerEffectiveTBMonth +
+                results.operationsPerEffectiveTBMonth +
+                results.softwarePerEffectiveTBMonth,
+              2
+            )}{" "}
+            / TBe / month
+          </span>
+        </CardFooter>
+      </Card>
+
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.6fr)]">
         <Card>
           <CardHeader>
-            <CardTitle>Cost through the deployment</CardTitle>
-            <CardDescription>Acquisition is separated from recurring annual run rate.</CardDescription>
+            <CardTitle>Total-term TCO by section</CardTitle>
+            <CardDescription>
+              Every acquisition and recurring cost across the full {model.workload.termYears}-year term.
+            </CardDescription>
             <CardAction>
               <Badge variant="secondary">{formatCompactCurrency(results.tco)} total</Badge>
             </CardAction>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-72 w-full">
-              <BarChart data={results.annualCosts} accessibilityLayer margin={{ left: 8, right: 8 }}>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={10} />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(value: number) => `$${Math.round(value / 1000)}k`}
-                  width={54}
+              <PieChart accessibilityLayer>
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      hideLabel
+                      nameKey="key"
+                      formatter={(value, _name, item) => {
+                        const payload = item.payload as { name?: string; fill?: string }
+                        const amount = Number(value)
+                        const share = results.tco ? (amount / results.tco) * 100 : 0
+
+                        return (
+                          <>
+                            <span
+                              className="size-2.5 shrink-0 rounded-[2px]"
+                              style={{ backgroundColor: payload.fill }}
+                            />
+                            <span className="flex flex-1 items-center justify-between gap-4">
+                              <span className="text-muted-foreground">{payload.name}</span>
+                              <span className="font-mono font-medium tabular-nums">
+                                {formatCompactCurrency(amount)} · {share.toFixed(0)}%
+                              </span>
+                            </span>
+                          </>
+                        )
+                      }}
+                    />
+                  }
                 />
-                <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
-                <Bar dataKey="hardware" stackId="cost" fill="var(--color-hardware)" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="software" stackId="cost" fill="var(--color-software)" />
-                <Bar dataKey="operations" stackId="cost" fill="var(--color-operations)" radius={[3, 3, 0, 0]} />
-              </BarChart>
+                <Pie
+                  data={tcoMixData}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={72}
+                  outerRadius={112}
+                  paddingAngle={2}
+                  stroke="var(--card)"
+                  strokeWidth={3}
+                >
+                  <Label
+                    content={({ viewBox }) => {
+                      if (!viewBox || !("cx" in viewBox) || !("cy" in viewBox)) return null
+
+                      const centerX = Number(viewBox.cx)
+                      const centerY = Number(viewBox.cy)
+
+                      return (
+                        <text
+                          x={centerX}
+                          y={centerY}
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                        >
+                          <tspan
+                            x={centerX}
+                            y={centerY - 5}
+                            className="fill-foreground font-mono text-xl font-semibold"
+                          >
+                            {formatCompactCurrency(results.tco)}
+                          </tspan>
+                          <tspan
+                            x={centerX}
+                            y={centerY + 17}
+                            className="fill-muted-foreground text-[0.625rem]"
+                          >
+                            {model.workload.termYears}-year TCO
+                          </tspan>
+                        </text>
+                      )
+                    }}
+                  />
+                </Pie>
+              </PieChart>
             </ChartContainer>
           </CardContent>
         </Card>
@@ -2297,7 +2491,11 @@ function SummaryPage({ results, model, onSectionChange }: Pick<ModelPagesProps, 
                     `${results.provisionedPowerKw.toFixed(2)} MAX kW × ${formatCurrency(model.opex.coloPerKwMonth)} / kW / mo`,
                     results.coloSpaceTotal,
                   ],
-                  ["Internet bandwidth", `${model.opex.internetBandwidthGbps.toLocaleString()} Gb/s committed`, results.networkOpexTotal],
+                  [
+                    "Internet bandwidth",
+                    `${model.opex.internetBandwidthGbps.toLocaleString()} Gb/s / rack × ${results.rackCount} ${results.rackCount === 1 ? "rack" : "racks"}`,
+                    results.networkOpexTotal,
+                  ],
                   ["Support & operations", "Replacement + support + admin", results.replacementTotal + results.supportTotal + results.adminTotal],
                 ].map(([name, basis, value]) => (
                   <TableRow key={String(name)}>

@@ -1,4 +1,4 @@
-export type ProtectionScheme = "raid5" | "raid6" | "erasure"
+export type ProtectionScheme = "mirror" | "raid5" | "raid6" | "erasure"
 
 export type ProtectionLayout = {
   scheme: ProtectionScheme
@@ -27,16 +27,24 @@ export function getProtectionLayout(
   dataShards: number,
   configuredParityShards: number
 ): ProtectionLayout {
-  const data = clampInteger(dataShards, 2, 20)
+  const data = scheme === "mirror" ? 1 : clampInteger(dataShards, 2, 20)
   const parity =
-    scheme === "raid5"
+    scheme === "mirror"
       ? 1
-      : scheme === "raid6"
-        ? 2
-        : clampInteger(configuredParityShards, 1, 10)
+      : scheme === "raid5"
+        ? 1
+        : scheme === "raid6"
+          ? 2
+          : clampInteger(configuredParityShards, 1, 10)
   const totalShards = data + parity
   const schemeLabel =
-    scheme === "raid5" ? "RAID 5" : scheme === "raid6" ? "RAID 6" : "Erasure code"
+    scheme === "mirror"
+      ? "Mirror"
+      : scheme === "raid5"
+        ? "RAID 5"
+        : scheme === "raid6"
+          ? "RAID 6"
+          : "Erasure code"
 
   return {
     scheme,
@@ -44,7 +52,8 @@ export function getProtectionLayout(
     parityShards: parity,
     totalShards,
     protectionFactor: totalShards / data,
-    label: `${schemeLabel} ${data}+${parity}`,
+    label:
+      scheme === "mirror" ? `${schemeLabel} 2-way` : `${schemeLabel} ${data}+${parity}`,
   }
 }
 
@@ -109,7 +118,7 @@ function prettyProbability(probability: number) {
 
 /**
  * Binomial rebuild-window durability model adapted from jmhands/durability-calc.
- * A protection set is lost when failures within one rebuild window exceed parity.
+ * A protection set is lost when failures within one rebuild window exceed available redundancy.
  */
 export function calculateDurability(
   layout: ProtectionLayout,

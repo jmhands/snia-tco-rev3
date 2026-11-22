@@ -11,4 +11,22 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-")) {
+            return "recharts"
+          }
+          if (
+            id.includes("node_modules/@base-ui") ||
+            id.includes("node_modules/lucide-react") ||
+            id.includes("node_modules/sonner")
+          ) {
+            return "ui-vendor"
+          }
+        },
+      },
+    },
+  },
 })

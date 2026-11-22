@@ -1,4 +1,5 @@
 export type ProtectionScheme = "mirror" | "raid5" | "raid6" | "erasure"
+export type FailureDomain = "drive" | "server"
 
 export type ProtectionLayout = {
   scheme: ProtectionScheme
@@ -9,18 +10,37 @@ export type ProtectionLayout = {
   label: string
 }
 
+export type DurabilityOptions = {
+  totalDrives?: number
+  serverCount?: number
+  failureDomain?: FailureDomain
+}
+
 export type DurabilityEstimate = {
   annualDurability: number
   annualLossRate: number
   annualOdds: string
   nines: number
+  formattedPercentage: string
+  clusterAnnualDurability: number
+  clusterAnnualLossRate: number
+  clusterAnnualOdds: string
+  clusterNines: number
+  clusterFormattedPercentage: string
+  protectionSetCount: number
+  failureDomain: FailureDomain
+  isTopologyValid: boolean
+  topologyWarning: string | null
   failureThreshold: number
   failureProbabilityPerPeriod: number
   rebuildPeriodsPerYear: number
 }
 
 const clampInteger = (value: number, minimum: number, maximum: number) =>
-  Math.min(Math.max(Math.round(Number.isFinite(value) ? value : minimum), minimum), maximum)
+  Math.min(
+    Math.max(Math.round(Number.isFinite(value) ? value : minimum), minimum),
+    maximum
+  )
 
 export function getProtectionLayout(
   scheme: ProtectionScheme,
@@ -53,7 +73,9 @@ export function getProtectionLayout(
     totalShards,
     protectionFactor: totalShards / data,
     label:
-      scheme === "mirror" ? `${schemeLabel} 2-way` : `${schemeLabel} ${data}+${parity}`,
+      scheme === "mirror"
+        ? `${schemeLabel} 2-way`
+        : `${schemeLabel} ${data}+${parity}`,
   }
 }
 
@@ -70,7 +92,11 @@ function choose(n: number, k: number) {
   return result
 }
 
-function binomialProbability(failures: number, shards: number, probability: number) {
+function binomialProbability(
+  failures: number,
+  shards: number,
+  probability: number
+) {
   return (
     choose(shards, failures) *
     Math.pow(probability, failures) *
@@ -79,15 +105,35 @@ function binomialProbability(failures: number, shards: number, probability: numb
 }
 
 function probabilityInAnyPeriod(probability: number, periods: number) {
-  if (probability <= 0) return 0
+  if (probability <= 0 || periods <= 0) return 0
   if (probability >= 1) return 1
 
-  return Math.min(1, Math.max(0, -Math.expm1(periods * Math.log1p(-probability))))
+  return Math.min(
+    1,
+    Math.max(0, -Math.expm1(periods * Math.log1p(-probability)))
+  )
 }
 
 function countNines(lossRate: number) {
   if (lossRate <= 0) return 15
   return Math.min(15, Math.max(0, Math.floor(-Math.log10(lossRate))))
+}
+
+export function formatDurabilityPercentage(
+  lossRate: number,
+  nines?: number
+): string {
+  const resolvedNines = nines ?? countNines(lossRate)
+  if (lossRate <= 0 || resolvedNines >= 15) {
+    return "99.9999999999999%+"
+  }
+  if (lossRate >= 1) {
+    return "0.00%"
+  }
+
+  const percent = (1 - lossRate) * 100
+  const fractionDigits = Math.min(13, Math.max(2, resolvedNines))
+  return `${percent.toFixed(fractionDigits)}%`
 }
 
 function prettyProbability(probability: number) {
@@ -118,12 +164,13 @@ function prettyProbability(probability: number) {
 
 /**
  * Binomial rebuild-window durability model.
- * A protection set is lost when failures within one rebuild window exceed available redundancy.
+ * Evaluates both a single protection set and the fleet-wide cluster durability.
  */
 export function calculateDurability(
   layout: ProtectionLayout,
   annualShardFailureRate: number,
-  rebuildTimeHours: number
+  rebuildTimeHours: number,
+  options: DurabilityOptions = {}
 ): DurabilityEstimate {
   const rebuildDays = Math.max(rebuildTimeHours, 1) / 24
   const rebuildPeriodsPerYear = 365 / rebuildDays
@@ -149,12 +196,52 @@ export function calculateDurability(
     periodLossProbability,
     rebuildPeriodsPerYear
   )
+  const nines = countNines(annualLossRate)
+
+  const totalDrives = Math.max(0, options.totalDrives ?? layout.totalShards)
+  const serverCount = Math.max(1, options.serverCount ?? layout.totalShards)
+  const failureDomain: FailureDomain = options.failureDomain ?? "drive"
+
+  const protectionSetCount =
+    totalDrives > 0 ? Math.max(1, totalDrives / layout.totalShards) : 0
+  const clusterAnnualLossRate =
+    totalDrives > 0
+      ? probabilityInAnyPeriod(
+          periodLossProbability,
+          rebuildPeriodsPerYear * protectionSetCount
+        )
+      : 0
+  const clusterNines = countNines(clusterAnnualLossRate)
+
+  let isTopologyValid = true
+  let topologyWarning: string | null = null
+
+  if (totalDrives > 0 && totalDrives < layout.totalShards) {
+    isTopologyValid = false
+    topologyWarning = `Layout requires ${layout.totalShards} shards (${layout.label}), but the cluster only deploys ${totalDrives} total drives.`
+  } else if (failureDomain === "server" && serverCount < layout.totalShards) {
+    isTopologyValid = false
+    topologyWarning = `Node-level failure domain requires at least ${layout.totalShards} servers for ${layout.label} (1 shard per node), but only ${serverCount} ${serverCount === 1 ? "server is" : "servers are"} configured.`
+  }
 
   return {
     annualDurability: 1 - annualLossRate,
     annualLossRate,
     annualOdds: prettyProbability(annualLossRate),
-    nines: countNines(annualLossRate),
+    nines,
+    formattedPercentage: formatDurabilityPercentage(annualLossRate, nines),
+    clusterAnnualDurability: 1 - clusterAnnualLossRate,
+    clusterAnnualLossRate,
+    clusterAnnualOdds: prettyProbability(clusterAnnualLossRate),
+    clusterNines,
+    clusterFormattedPercentage: formatDurabilityPercentage(
+      clusterAnnualLossRate,
+      clusterNines
+    ),
+    protectionSetCount,
+    failureDomain,
+    isTopologyValid,
+    topologyWarning,
     failureThreshold,
     failureProbabilityPerPeriod,
     rebuildPeriodsPerYear,

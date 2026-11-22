@@ -86,7 +86,9 @@ function NavigationGroup({
                   <span>{item.label}</span>
                 </SidebarMenuButton>
                 {item.id === "summary" ? (
-                  <SidebarMenuBadge>{formatCurrency(summaryValue, 2)}</SidebarMenuBadge>
+                  <SidebarMenuBadge>
+                    {formatCurrency(summaryValue, 2)}
+                  </SidebarMenuBadge>
                 ) : null}
               </SidebarMenuItem>
             )
@@ -131,12 +133,12 @@ export function AppSidebar({
                 <img
                   src="/snia-logo.svg"
                   alt="SNIA"
-                  className="h-auto w-[8.75rem] max-w-full dark:hidden group-data-[collapsible=icon]:hidden"
+                  className="h-auto w-[8.75rem] max-w-full group-data-[collapsible=icon]:hidden dark:hidden"
                 />
                 <img
                   src="/snia-logo-dark.svg"
                   alt="SNIA"
-                  className="absolute inset-0 hidden size-full object-cover dark:block group-data-[collapsible=icon]:hidden"
+                  className="absolute inset-0 hidden size-full object-cover group-data-[collapsible=icon]:hidden dark:block"
                 />
                 <img
                   src="/snia-mark.svg"
@@ -189,7 +191,8 @@ export function AppSidebar({
                   <Badge variant="secondary">Synced</Badge>
                 </span>
                 <span className="truncate font-mono text-[0.625rem] text-sidebar-foreground/60">
-                  {formatCapacity(tcoResults.effectiveCapacityTB)} · {tcoResults.rackCount} rack
+                  {formatCapacity(tcoResults.effectiveCapacityTB)} ·{" "}
+                  {tcoResults.rackCount} rack
                   {tcoResults.rackCount === 1 ? "" : "s"}
                 </span>
               </span>

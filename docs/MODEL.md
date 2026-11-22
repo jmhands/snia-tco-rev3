@@ -329,18 +329,31 @@ Annual loss probability = 1 − (1 − period loss probability)^(periods per yea
 Annual durability = 1 − annual loss probability
 ```
 
-The interface presents annual durability, durability nines, approximate annual odds, and the number of failures needed to lose the protection set.
+The interface presents annual durability, durability nines, approximate annual odds, and the number of failures needed to lose the protection set, alongside **fleet-wide cluster durability** scaled across all deployed protection sets (`totalDrives / totalShards`) and **failure-domain topology validation** (`Drive-level` vs. `Node-level` placement).
 
 ### Durability assumptions
 
 - Shard failures are statistically independent.
 - AFR is constant and is distributed across rebuild windows.
-- Rebuild time is deterministic.
+- Rebuild time is deterministic (1 to 240 hours to cover both NVMe SSD and high-capacity Nearline HDD rebuilds).
 - Every shard in the protection set has the weighted average AFR of the installed server drive mix.
-- The estimate is for a single protection set, not the probability of at least one loss across an entire fleet.
-- Correlated failures, rack and chassis failure domains, latent sector errors, firmware defects, human error, and rebuild-performance effects are outside the current scope.
+- Both single protection-set durability and fleet-wide cluster loss probability are reported.
+- Node-level failure domain placement verifies that the configured server count is at least `d + p` shards.
 
 The estimate is useful for comparing protection layouts under the same assumptions. It is not a durability guarantee.
+
+## Discounted cash flow (NPV) and residual value
+
+Optional financial parameters in OpEx Config allow discounting recurring annual cash flows by an annual discount rate `r` (WACC) and applying a hardware residual/salvage value percentage at the end of year `Y`:
+
+```text
+Residual value credit = hardware CapEx × residual value %
+Year t net cash flow = annual recurring software + annual OpEx − (residual value credit if t = Y)
+Discounted year t PV = year t net cash flow / (1 + r)^t
+NPV TCO = hardware CapEx + upfront software + Σ (Discounted year t PV for t = 1..Y)
+```
+
+When the discount rate and residual value are set to their `0%` defaults, `NPV TCO` equals nominal `TCO`.
 
 ## Rev 1 defaults
 
@@ -362,11 +375,13 @@ The defaults are defined in `apps/web/src/lib/tco-model.ts`. Highlights include:
 
 Use **Reset model** in the application to return to this baseline.
 
-## Persistence and export
+## Persistence, scenarios, and export
 
-The application stores the current model as versioned JSON in browser local storage. This supports quick local iteration but is not a shared scenario repository. The summary’s CSV export captures the current cost ledger; it does not include every input assumption.
+The application stores the active model and user-saved scenarios as validated JSON in browser local storage. In addition to four built-in reference scenarios (TLC NVMe, QLC NVMe, Nearline HDD Archive, and Hybrid NVMe+HDD) and side-by-side scenario comparison, the header supports:
 
-For a durable scenario record, export the ledger and separately record the input values or preserve the model JSON through a future scenario export feature.
+- **Shareable URL (`?s=...`)** — encodes the complete scenario state into a URL query parameter
+- **Export / Import scenario JSON** — saves or loads the complete input assumption set as `.json`
+- **Export summary CSV** — exports the cost ledger, media breakdown, and annual cash-flow schedule
 
 ## Known boundaries
 

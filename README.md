@@ -35,15 +35,15 @@ Raw TB → Protected TB → Data-reduced TBe → Utilized TBe
 
 ## What the model covers
 
-| Area                 | What you can model                                                                                                                |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Drive config         | A reusable drive library, mixed media per server, binary capacity steps, raw $/TB, active and idle power, and AFR                 |
-| Server config        | Drive population, sockets, cores, DRAM, rack units, base power, NIC count, ports, link speed, and chassis cost                    |
-| Cluster config       | Server count, rack density, host network overhead, switches, 800G breakouts, optics, switch power, and fabric cost                |
-| Software & license   | Upfront raw-TB and per-server licenses plus recurring per-core and per-raw-TB subscriptions                                       |
-| Workload & reduction | Deployment term, mirror, RAID 5, RAID 6, flexible erasure coding, rebuild time, utilization, duty cycle, and data reduction       |
-| OpEx config          | PUE-adjusted electricity, peak-power colocation, Internet per rack, administration, hardware support, and drive replacement labor |
-| TCO summary          | Full-term TCO, per-TBe-month economics, power and capacity summaries, category breakdown, ledger, and CSV export                  |
+| Area                 | What you can model                                                                                                                                    |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Drive config         | Reusable NVMe SSD and Hard Drive (HDD) library, media presets (TLC, QLC, SATA/SAS Nearline, HAMR, Dual-Actuator), $/TB, power, and AFR               |
+| Server config        | Up to 108 bays per server, mixed NVMe + HDD media, sockets, cores, DRAM, rack units, base power, NIC count, ports, link speed, and chassis cost       |
+| Cluster config       | Server count, rack density, host network overhead, 32/64-port 400G/800G switches, breakouts, Optics/AOC/DAC presets, switch power, and fabric cost    |
+| Software & license   | Upfront raw-TB and per-server licenses plus recurring per-core and per-raw-TB subscriptions                                                           |
+| Workload & reduction | Deployment term, mirror, RAID 5, RAID 6, flexible erasure coding, drive/node failure domains, up to 240h rebuild, fleet durability, and reduction     |
+| OpEx & NPV config    | PUE-adjusted electricity, peak-power colocation, Internet per rack, administration, hardware support, replacement labor, WACC discount rate, salvage  |
+| TCO summary          | Full-term & NPV TCO, per-TBe-month economics, annual cash-flow timeline, side-by-side scenario comparison, shareable links, and CSV / JSON export     |
 
 ## Rev 1 baseline
 
@@ -156,6 +156,7 @@ The production site is available at [snia-tco-rev3.pages.dev](https://snia-tco-r
 | Command             | Purpose                                     |
 | ------------------- | ------------------------------------------- |
 | `bun run dev`       | Start the application in development mode   |
+| `bun run test`      | Run the unit test suite (`bun test`)        |
 | `bun run typecheck` | Validate TypeScript across the workspace    |
 | `bun run lint`      | Run ESLint across the workspace             |
 | `bun run build`     | Create the production bundle                |
